@@ -66,10 +66,11 @@ class lab_imageloader:
     self.test_shuff_ids = np.random.permutation(len(self.test_img_fns))
   
   def train_next_batch(self, batch_size, nch=2):
-    batch = np.zeros((batch_size, nch*np.prod(self.shape)), dtype='f')
-    batch_lossweights = np.ones((batch_size, nch*np.prod(self.shape)), dtype='f')
-    batch_recon_const = np.zeros((batch_size, np.prod(self.shape)), dtype='f')
-    batch_recon_const_outres = np.zeros((batch_size, np.prod(self.outshape)), dtype='f')
+    batch = np.zeros((batch_size, nch, self.shape[0], self.shape[1]), dtype='f')
+    batch_lossweights = np.ones((batch_size, nch, self.shape[0], self.shape[1]), dtype='f')
+    batch_recon_const = np.zeros((batch_size, 1, self.shape[0], self.shape[1]), dtype='f')
+    batch_recon_const_outres = np.zeros((batch_size, 1, self.outshape[0], self.outshape[1]),\
+        dtype='f')
 
     if(self.train_batch_head + batch_size >= len(self.train_img_fns)):
       self.train_shuff_ids = np.random.permutation(len(self.train_img_fns))
@@ -84,10 +85,13 @@ class lab_imageloader:
 
       img_lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
       img_lab_outres = cv2.cvtColor(img_outres, cv2.COLOR_BGR2LAB)
-      batch_recon_const[i_n, ...] = ((img_lab[..., 0].reshape(-1)*2.)/255.)-1.
-      batch_recon_const_outres[i_n, ...] = ((img_lab_outres[..., 0].reshape(-1)*2.)/255.)-1.
-      batch[i_n, ...] = np.concatenate((((img_lab[..., 1].reshape(-1)*2.)/255.)-1.,
-        ((img_lab[..., 2].reshape(-1)*2.)/255.)-1.), axis=0)
+
+      batch_recon_const[i_n, 0, :, :] = ((img_lab[..., 0]*2.)/255.)-1.
+      batch_recon_const_outres[i_n, 0, :, :] = ((img_lab_outres[..., 0]*2.)/255.)-1.
+      batch[i_n, 0, :, :] = \
+        ((img_lab[..., 1].reshape(1, self.shape[0], self.shape[1])*2.)/255.)-1.
+      batch[i_n, 1, :, :] = \
+        ((img_lab[..., 2].reshape(1, self.shape[0], self.shape[1])*2.)/255.)-1.
 
       if(self.lossweights is not None):
         batch_lossweights[i_n, ...] = self.__get_lossweights(batch[i_n, ...])
@@ -98,9 +102,10 @@ class lab_imageloader:
     return batch, batch_recon_const, batch_lossweights, batch_recon_const_outres
 
   def test_next_batch(self, batch_size, nch=2):
-    batch = np.zeros((batch_size, nch*np.prod(self.shape)), dtype='f')
-    batch_recon_const = np.zeros((batch_size, np.prod(self.shape)), dtype='f')
-    batch_recon_const_outres = np.zeros((batch_size, np.prod(self.outshape)), dtype='f')
+    batch = np.zeros((batch_size, nch, self.shape[0], self.shape[1]), dtype='f')
+    batch_recon_const = np.zeros((batch_size, 1, self.shape[0], self.shape[1]), dtype='f')
+    batch_recon_const_outres = np.zeros((batch_size, 1, self.outshape[0], self.outshape[1]),\
+        dtype='f')
     batch_imgnames = []
     if(self.test_batch_head + batch_size > len(self.test_img_fns)):
       self.test_batch_head = 0
@@ -116,10 +121,12 @@ class lab_imageloader:
       img_lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
       img_lab_outres = cv2.cvtColor(img_outres, cv2.COLOR_BGR2LAB)
 
-      batch_recon_const[i_n, ...] = ((img_lab[..., 0].reshape(-1)*2.)/255.)-1.
-      batch_recon_const_outres[i_n, ...] = ((img_lab_outres[..., 0].reshape(-1)*2.)/255.)-1.
-      batch[i_n, ...] = np.concatenate((((img_lab[..., 1].reshape(-1)*2.)/255.)-1.,
-        ((img_lab[..., 2].reshape(-1)*2.)/255.)-1.), axis=0)
+      batch_recon_const[i_n, 0, :, :] = ((img_lab[..., 0]*2.)/255.)-1.
+      batch_recon_const_outres[i_n, 0, :, :] = ((img_lab_outres[..., 0]*2.)/255.)-1.
+      batch[i_n, 0, :, :] = \
+        ((img_lab[..., 1].reshape(1, self.shape[0], self.shape[1])*2.)/255.)-1.
+      batch[i_n, 1, :, :] = \
+        ((img_lab[..., 2].reshape(1, self.shape[0], self.shape[1])*2.)/255.)-1.
 
 
     self.test_batch_head = self.test_batch_head + batch_size
@@ -153,11 +160,11 @@ class lab_imageloader:
       if(i % num_cols == 0 and i > 0):
         r = r + 1
         c = 0
-      img_lab[..., 0] = self.__get_decoded_img(net_recon_const[i, ...].reshape(\
+      img_lab[..., 0] = self.__get_decoded_img(net_recon_const[i, 0, :, :].reshape(\
         self.outshape[0], self.outshape[1]))
-      img_lab[..., 1] = self.__get_decoded_img(net_op[i, :np.prod(self.shape)].reshape(\
+      img_lab[..., 1] = self.__get_decoded_img(net_op[i, 0, :, :].reshape(\
         self.shape[0], self.shape[1]))
-      img_lab[..., 2] = self.__get_decoded_img(net_op[i, np.prod(self.shape):].reshape(\
+      img_lab[..., 2] = self.__get_decoded_img(net_op[i, 1, :, :].reshape(\
         self.shape[0], self.shape[1]))
       img_rgb = cv2.cvtColor(img_lab, cv2.COLOR_LAB2BGR)
       out_img[r*self.outshape[0]:(r+1)*self.outshape[0], \
@@ -215,9 +222,10 @@ class lab_imageloader:
     img_dec[img_dec > 255.] = 255.
     return cv2.resize(np.uint8(img_dec), (self.outshape[0], self.outshape[1]))
 
-  def __get_lossweights(self, img_vec):
+  def __get_lossweights(self, img):
+    img_vec = img.reshape(-1)
     img_vec = img_vec*128.
-    img_lossweights = np.zeros(img_vec.shape, dtype='f')
+    img_lossweights = np.zeros(img.shape, dtype='f')
     img_vec_a = img_vec[:np.prod(self.shape)]
     binedges_a = self.binedges[0,...].reshape(-1)
     binid_a = [binedges_a.flat[np.abs(binedges_a-v).argmin()] for v in img_vec_a]
@@ -225,6 +233,6 @@ class lab_imageloader:
     binedges_b = self.binedges[1,...].reshape(-1)
     binid_b = [binedges_b.flat[np.abs(binedges_b-v).argmin()] for v in img_vec_b]
     binweights = np.array([self.lossweights[v1][v2] for v1,v2 in zip(binid_a, binid_b)])
-    img_lossweights[:np.prod(self.shape)] = binweights 
-    img_lossweights[np.prod(self.shape):] = binweights
+    img_lossweights[0, :, :] = binweights.reshape(self.shape[0], self.shape[1])
+    img_lossweights[1, :, :] = binweights.reshape(self.shape[0], self.shape[1])
     return img_lossweights
