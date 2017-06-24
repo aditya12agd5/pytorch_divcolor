@@ -22,8 +22,7 @@ def vae_loss(mu, logvar, pred, gt, lossweights, batch_size):
   recon_loss = torch.sum(recon_element).mul(1./(batch_size))
   return kl_loss.mul(1e-2)+recon_loss
 
-def train():
-
+def get_params(): 
   if(len(sys.argv) == 1):
     raise NameError('[ERROR] No dataset key')
   elif(sys.argv[1] == 'lfw'):
@@ -35,6 +34,12 @@ def train():
     batch_size = 32
   else:
     raise NameError('[ERROR] Incorrect key')
+  return updates_per_epoch, nepochs, log_interval, out_dir, list_dir, batch_size
+
+def train_vae():
+
+  updates_per_epoch, nepochs, log_interval, out_dir, list_dir, batch_size = \
+      get_params()
 
   data_loader = lab_imageloader(None, \
     os.path.join(out_dir, 'images'), \
@@ -72,6 +77,36 @@ def train():
           net_recon_const=batch_recon_const_outres) 
 
     print('[DEBUG] Epoch %d has loss %f' % (epochs, train_loss)) 
+    torch.save(model.state_dict(), '%s/models/model_vae_%03d' % (out_dir, epochs))
+
+def test_vae(num_batches=4):
+
+  _, nepochs, _, out_dir, list_dir, batch_size = \
+      get_params()
+
+  data_loader = lab_imageloader(None, \
+    os.path.join(out_dir, 'images'), \
+    listdir=list_dir)
+
+  model = VAE()
+  model.cuda()
+  print(model)
+
+  model.load_state_dict(torch.load('%s/models/model_vae_%03d' % (out_dir, nepochs-1)))
+
+  for i in range(num_batches):
+    batch, batch_recon_const, batch_recon_const_outres, _ = \
+      data_loader.test_next_batch(batch_size)
+    input_color = Variable(torch.from_numpy(batch)).cuda()
+    input_greylevel = Variable(torch.from_numpy(batch_recon_const)).cuda()
+    _, _, color_out = model(input_color, input_greylevel)
+
+    data_loader.save_output_with_gt(color_out.cpu().data.numpy(), \
+      batch, \
+      'test_%05d' % (i), \
+      batch_size, \
+      net_recon_const=batch_recon_const_outres) 
 
 if __name__ == '__main__': 
-  train()
+#  train_vae()
+  test_vae()

@@ -99,7 +99,6 @@ class VAE(nn.Module):
     x = F.tanh(self.dec_conv5(x))
     return x
       
-
   #define forward pass
   def forward(self, color, greylevel):
     mu, logvar = self.encoder(color)
