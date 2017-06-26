@@ -2,6 +2,8 @@
 
 PyTorch implementation of Diverse Colorization -- Deshpande et al. "[Learning Diverse Image Colorization](https://arxiv.org/abs/1612.01958)"                 
 
+The Tensorflow implementation used in the paper is [divcolor](https://github.com/aditya12agd5/divcolor)
+
 Fetch data by
 
 ```
