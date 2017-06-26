@@ -1,2 +1,2 @@
-# torch_divcolor
-Diverse Colorization in Torch
+# pytorch_divcolor
+Diverse Colorization in PyTorch

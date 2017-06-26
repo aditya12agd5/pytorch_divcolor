@@ -28,15 +28,9 @@ def get_params():
     updates_per_epoch = 380
     nepochs = 10
     log_interval = 120
-    out_dir = '/data/ardeshp2/output_lfw/'
+    out_dir = 'data/output/lfw/'
     listdir = 'data/imglist/lfw/'
     featslistdir = 'data/featslist/lfw/'
-  elif(sys.argv[1] == 'imagenet'):
-    updates_per_epoch = 10000
-    nepochs = 8
-    log_interval = 5000
-    out_dir = '/data/ardeshp2/output_imagenet/'
-    listdir = 'data/imglist/imagenet/'
   else:
     raise NameError('[ERROR] Incorrect key')
   return updates_per_epoch, nepochs, log_interval, out_dir, listdir, featslistdir
@@ -73,7 +67,6 @@ def mdn_loss(gmm_params, mu, stddev, batch_size):
   return gmm_loss
 
 def train_vae():
-
   updates_per_epoch, nepochs, log_interval, out_dir, listdir, featslistdir = \
       get_params()
 
@@ -84,7 +77,6 @@ def train_vae():
 
   model = VAE()
   model.cuda()
-  print(model)
 
   optimizer = optim.Adam(model.parameters(), lr=1e-5)
 
@@ -115,39 +107,8 @@ def train_vae():
           batch_size, \
           net_recon_const=batch_recon_const_outres) 
     train_loss = (train_loss*1.)/(updates_per_epoch)
-    print('[DEBUG] Epoch %d has loss %f' % (epochs, train_loss)) 
+    print('[DEBUG] Training VAE, epoch %d has loss %f' % (epochs, train_loss)) 
     torch.save(model.state_dict(), '%s/models/model_vae_%03d' % (out_dir, epochs))
-
-def test_vae(num_batches=4):
-
-  _, nepochs, _, out_dir, listdir, featslistdir = \
-      get_params()
-
-  data_loader = lab_imageloader(\
-    os.path.join(out_dir, 'images'), \
-    listdir=listdir,\
-    featslistdir=featslistdir)
-  data_loader.reset()
-
-  model = VAE()
-  model.cuda()
-  print(model)
-
-  model.load_state_dict(torch.load('%s/models/model_vae_%03d' % (out_dir, nepochs-1)))
-
-  for i in range(num_batches):
-    batch, batch_recon_const, batch_recon_const_outres, _, _ = \
-      data_loader.test_next_batch(batch_size)
-    input_color = Variable(torch.from_numpy(batch)).cuda()
-    input_greylevel = Variable(torch.from_numpy(batch_recon_const)).cuda()
-    z = Variable(torch.randn(batch_size, hidden_size))
-    _, _, color_out = model(input_color, input_greylevel, z)
-
-    data_loader.save_output_with_gt(color_out.cpu().data.numpy(), \
-      batch, \
-      'test_%05d' % (i), \
-      batch_size, \
-      net_recon_const=batch_recon_const_outres) 
 
 def train_mdn(nepochs_mdn=5):
   updates_per_epoch, nepochs, log_interval, out_dir, listdir, featslistdir = \
@@ -161,12 +122,10 @@ def train_mdn(nepochs_mdn=5):
 
   model_vae = VAE()
   model_vae.cuda()
-  print(model_vae)
   model_vae.load_state_dict(torch.load('%s/models/model_vae_%03d' % (out_dir, nepochs-1)))
 
   model_mdn = MDN()
   model_mdn.cuda()
-  print(model_mdn)
 
   optimizer = optim.Adam(model_mdn.parameters(), lr=1e-5)
 
@@ -191,7 +150,7 @@ def train_mdn(nepochs_mdn=5):
       optimizer.step()
       train_loss = train_loss + loss.data[0]
     train_loss = (train_loss*1.)/(n_train_batches)
-    print('[DEBUG] Epoch %d has loss %f' % (epochs_mdn, train_loss))
+    print('[DEBUG] Training MDN, epoch %d has loss %f' % (epochs_mdn, train_loss))
     torch.save(model_mdn.state_dict(), '%s/models_mdn/model_mdn_%03d' % (out_dir, epochs_mdn))
 
 def divcolor(num_batches=4, nepochs_mdn=5):
@@ -206,12 +165,10 @@ def divcolor(num_batches=4, nepochs_mdn=5):
 
   model_vae = VAE()
   model_vae.cuda()
-  print(model_vae)
   model_vae.load_state_dict(torch.load('%s/models/model_vae_%03d' % (out_dir, nepochs-1)))
 
   model_mdn = MDN()
   model_mdn.cuda()
-  print(model_mdn)
   model_mdn.load_state_dict(torch.load('%s/models_mdn/model_mdn_%03d' % (out_dir, nepochs_mdn-1)))
 
   for i in range(num_batches):
