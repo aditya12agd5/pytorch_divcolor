@@ -100,13 +100,14 @@ class VAE(nn.Module):
     return x
       
   #define forward pass
-  def forward(self, color, greylevel):
-    mu, logvar = self.encoder(color)
+  def forward(self, color, greylevel, z_in, is_train=True):
     sc_feat32, sc_feat16, sc_feat8, sc_feat4 = self.cond_encoder(greylevel)
-
-    stddev = torch.sqrt(torch.exp(logvar))
-    eps = Variable(torch.randn(stddev.size()).normal_()).cuda()
-    z = torch.add(mu, torch.mul(eps, stddev))
-
+    mu, logvar = self.encoder(color)
+    if(is_train == True):
+      stddev = torch.sqrt(torch.exp(logvar))
+      eps = Variable(torch.randn(stddev.size()).normal_()).cuda()
+      z = torch.add(mu, torch.mul(eps, stddev))
+    else:
+      z = z_in
     color_out = self.decoder(z, sc_feat32, sc_feat16, sc_feat8, sc_feat4)
     return mu, logvar, color_out

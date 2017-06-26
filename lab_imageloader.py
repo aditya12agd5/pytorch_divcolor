@@ -6,34 +6,32 @@ import os
 
 class lab_imageloader:
 
-  def __init__(self, data_directory, out_directory, listdir=None, shape=(64, 64), \
-        subdir=False, ext='JPEG', outshape=(256, 256)):
+  def __init__(self, out_directory, listdir=None, featslistdir=None, \
+        shape=(64, 64), subdir=False, ext='JPEG', outshape=(256, 256)):
 
-    if(listdir == None):
-      if(subdir==False):
-        self.img_fns = glob.glob('%s/*.%s' % (data_directory, ext))
-      else:
-        self.img_fns = glob.glob('%s/*/*.%s' % (data_directory, ext))
-      np.random.seed(seed=0)
-      selectids = np.random.permutation(len(self.img_fns))
-      fact_train = .9
-      self.train_img_fns = \
-        [self.img_fns[l] for l in selectids[:np.int_(np.round(fact_train*len(self.img_fns)))]]
-      self.test_img_fns = \
-        [self.img_fns[l] for l in selectids[np.int_(np.round(fact_train*len(self.img_fns))):]]
-    else:
-      self.train_img_fns = []
-      self.test_img_fns = []
-      with open('%s/list.train.vae.txt' % listdir, 'r') as ftr:
-        for img_fn in ftr:
-          self.train_img_fns.append(img_fn.strip('\n'))
+    self.train_img_fns = []
+    self.test_img_fns = []
+    self.train_feats_fns = []
+    self.test_feats_fns = []
+
+    with open('%s/list.train.vae.txt' % listdir, 'r') as ftr:
+      for img_fn in ftr:
+        self.train_img_fns.append(img_fn.strip('\n'))
       
-      with open('%s/list.test.vae.txt' % listdir, 'r') as fte:
-        for img_fn in fte:
-          self.test_img_fns.append(img_fn.strip('\n'))
+    with open('%s/list.test.vae.txt' % listdir, 'r') as fte:
+      for img_fn in fte:
+        self.test_img_fns.append(img_fn.strip('\n'))
 
-    self.train_img_num = len(self.train_img_fns)
-    self.test_img_num = len(self.test_img_fns)
+    with open('%s/list.train.txt' % featslistdir, 'r') as ftr:
+      for feats_fn in ftr:
+        self.train_feats_fns.append(feats_fn.strip('\n'))
+      
+    with open('%s/list.test.txt' % featslistdir, 'r') as fte:
+      for feats_fn in fte:
+        self.test_feats_fns.append(feats_fn.strip('\n'))
+
+    self.train_img_num = min(len(self.train_img_fns), len(self.train_feats_fns))
+    self.test_img_num = min(len(self.test_img_fns), len(self.test_feats_fns))
     self.train_batch_head = 0
     self.test_batch_head = 0
     self.train_shuff_ids = np.random.permutation(len(self.train_img_fns))
@@ -65,12 +63,13 @@ class lab_imageloader:
     self.train_shuff_ids = np.random.permutation(len(self.train_img_fns))
     self.test_shuff_ids = np.random.permutation(len(self.test_img_fns))
   
-  def train_next_batch(self, batch_size, nch=2):
+  def train_next_batch(self, batch_size, nch=2, get_feats=False):
     batch = np.zeros((batch_size, nch, self.shape[0], self.shape[1]), dtype='f')
     batch_lossweights = np.ones((batch_size, nch, self.shape[0], self.shape[1]), dtype='f')
     batch_recon_const = np.zeros((batch_size, 1, self.shape[0], self.shape[1]), dtype='f')
     batch_recon_const_outres = np.zeros((batch_size, 1, self.outshape[0], self.outshape[1]),\
         dtype='f')
+    batch_feats = np.zeros((batch_size, 512, 28, 28), dtype='f')
 
     if(self.train_batch_head + batch_size >= len(self.train_img_fns)):
       self.train_shuff_ids = np.random.permutation(len(self.train_img_fns))
@@ -96,17 +95,23 @@ class lab_imageloader:
       if(self.lossweights is not None):
         batch_lossweights[i_n, ...] = self.__get_lossweights(batch[i_n, ...])
 
+      if(get_feats == True):
+        featobj = np.load(self.train_feats_fns[currid])
+        batch_feats[i_n, :, :, :] = featobj['arr_0']
+
     self.train_batch_head = self.train_batch_head + batch_size
 
 
-    return batch, batch_recon_const, batch_lossweights, batch_recon_const_outres
+    return batch, batch_recon_const, batch_lossweights, batch_recon_const_outres, batch_feats
 
-  def test_next_batch(self, batch_size, nch=2):
+  def test_next_batch(self, batch_size, nch=2, get_feats=False):
     batch = np.zeros((batch_size, nch, self.shape[0], self.shape[1]), dtype='f')
     batch_recon_const = np.zeros((batch_size, 1, self.shape[0], self.shape[1]), dtype='f')
     batch_recon_const_outres = np.zeros((batch_size, 1, self.outshape[0], self.outshape[1]),\
         dtype='f')
     batch_imgnames = []
+    batch_feats = np.zeros((batch_size, 512, 28, 28), dtype='f')
+
     if(self.test_batch_head + batch_size > len(self.test_img_fns)):
       self.test_batch_head = 0
 
@@ -128,10 +133,13 @@ class lab_imageloader:
       batch[i_n, 1, :, :] = \
         ((img_lab[..., 2].reshape(1, self.shape[0], self.shape[1])*2.)/255.)-1.
 
+      if(get_feats == True):
+        featobj = np.load(self.test_feats_fns[currid])
+        batch_feats[i_n, :, :, :] = featobj['arr_0']
 
     self.test_batch_head = self.test_batch_head + batch_size
 
-    return batch, batch_recon_const, batch_recon_const_outres, batch_imgnames
+    return batch, batch_recon_const, batch_recon_const_outres, batch_imgnames, batch_feats
   
   def save_output_with_gt(self, net_op, gt, prefix, batch_size, num_cols=8, net_recon_const=None):
 
@@ -173,49 +181,6 @@ class lab_imageloader:
 
     return out_img
   
-  def save_divcolor(self, net_op, gt, prefix, batch_size, imgname, num_cols=8, net_recon_const=None):
-
-    img_lab = np.zeros((self.outshape[0], self.outshape[1], 3), dtype='uint8')
-    img_lab_mat = np.zeros((self.shape[0], self.shape[1], 2), dtype='uint8')
-
-    if not os.path.exists('%s/%s' % (self.out_directory, imgname)):
-      os.makedirs('%s/%s' % (self.out_directory, imgname))
-
-    for i in range(batch_size):
-      img_lab[..., 0] = self.__get_decoded_img(net_recon_const[i, ...].reshape(\
-        self.outshape[0], self.outshape[1]))
-      img_lab[..., 1] = self.__get_decoded_img(net_op[i, :np.prod(self.shape)].reshape(\
-        self.shape[0], self.shape[1]))
-      img_lab[..., 2] = self.__get_decoded_img(net_op[i, np.prod(self.shape):].reshape(\
-        self.shape[0], self.shape[1]))
-      img_lab_mat[..., 0] = 128.*net_op[i, :np.prod(self.shape)].reshape(\
-        self.shape[0], self.shape[1])+128.
-      img_lab_mat[..., 1] = 128.*net_op[i, np.prod(self.shape):].reshape(\
-        self.shape[0], self.shape[1])+128.
-      img_rgb = cv2.cvtColor(img_lab, cv2.COLOR_LAB2BGR)
-      out_fn_pred = '%s/%s/%s_%03d.png' % (self.out_directory, imgname, prefix, i)
-      cv2.imwrite(out_fn_pred, img_rgb)
-      out_fn_mat = '%s/%s/%s_%03d.mat' % (self.out_directory, imgname, prefix, i)
-      np.save(out_fn_mat, img_lab_mat)
-
-    img_lab[..., 0] = self.__get_decoded_img(net_recon_const[i, ...].reshape(\
-      self.outshape[0], self.outshape[1]))
-    img_lab[..., 1] = self.__get_decoded_img(gt[0, :np.prod(self.shape)].reshape(\
-      self.shape[0], self.shape[1]))
-    img_lab[..., 2] = self.__get_decoded_img(gt[0, np.prod(self.shape):].reshape(\
-      self.shape[0], self.shape[1]))
-
-    img_lab_mat[..., 0] = (gt[0, :np.prod(self.shape)].reshape(\
-      self.shape[0], self.shape[1])+1.)*255.
-    img_lab_mat[..., 1] = (gt[0, np.prod(self.shape):].reshape(\
-      self.shape[0], self.shape[1])+1.)*255.
-
-    out_fn_pred = '%s/%s/gt.png' % (self.out_directory, imgname)
-    img_rgb = cv2.cvtColor(img_lab, cv2.COLOR_LAB2BGR)
-    cv2.imwrite(out_fn_pred, img_rgb)
-    out_fn_mat = '%s/%s/gt.mat' % (self.out_directory, imgname)
-    np.save(out_fn_mat, img_lab_mat)
-
   def __get_decoded_img(self, img_enc):
     img_dec = (((img_enc+1.)*1.)/2.)*255.
     img_dec[img_dec < 0.] = 0.
