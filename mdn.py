@@ -27,10 +27,12 @@ class MDN(nn.Module):
     self.mdn_bn4 = nn.BatchNorm2d(256)
     self.mdn_conv5 = nn.Conv2d(256, 128, 5, stride=1, padding=2)
     self.mdn_bn5 = nn.BatchNorm2d(128)
+    self.mdn_conv6 = nn.Conv2d(128, 96, 5, stride=2, padding=2)
+    self.mdn_bn6 = nn.BatchNorm2d(96)
+    self.mdn_conv7 = nn.Conv2d(96, 64, 5, stride=2, padding=2)
+    self.mdn_bn7 = nn.BatchNorm2d(64)
     self.mdn_dropout1 = nn.Dropout(p=.7)
-    self.mdn_fc1 = nn.Linear(14*14*128, 4096)
-    self.mdn_dropout2 = nn.Dropout(p=.7)
-    self.mdn_fc2 = nn.Linear(4096, self.nout)
+    self.mdn_fc1 = nn.Linear(4*4*64, self.nout)
 
   #define forward pass
   def forward(self, feats):
@@ -44,9 +46,11 @@ class MDN(nn.Module):
     x = self.mdn_bn4(x)
     x = F.relu(self.mdn_conv5(x))
     x = self.mdn_bn5(x)
-    x = x.view(-1, 14*14*128)
+    x = F.relu(self.mdn_conv6(x))
+    x = self.mdn_bn6(x)
+    x = F.relu(self.mdn_conv7(x))
+    x = self.mdn_bn7(x)
+    x = x.view(-1, 4*4*64)
     x = self.mdn_dropout1(x)
-    x = F.tanh(self.mdn_fc1(x))
-    x = self.mdn_dropout2(x)
-    x = self.mdn_fc2(x)
+    x = self.mdn_fc1(x)
     return x
