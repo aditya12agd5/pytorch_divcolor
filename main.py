@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+import cv2
 import os
 os.environ["CUDA_VISIBLE_DEVICES"]="0"
 import socket
@@ -21,12 +22,29 @@ batch_size = 32
 hidden_size = 64
 nmix = 8
 
+#Define sobel filters
+sobel_x = torch.cuda.FloatTensor([[[[1,2,1], [0,0,0], [-1,-2,-1]]]])
+sobel_y = torch.cuda.FloatTensor([[[[1,0,-1], [2,0,-2], [1,0,-1]]]])
+bias = torch.cuda.FloatTensor([0])
+
+sobel_conv_x = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=2)
+sobel_conv_x.weight.data = sobel_x
+sobel_conv_x.bias.data = bias
+sobel_conv_x.weight.requires_grad = False
+sobel_conv_x.bias.requires_grad = False
+sobel_conv_y = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=2)
+sobel_conv_y.weight.data = sobel_y
+sobel_conv_y.bias.data = bias
+sobel_conv_y.weight.requires_grad = False
+sobel_conv_y.bias.requires_grad = False
+
 def get_params(): 
   if(len(sys.argv) == 1):
     raise NameError('[ERROR] No dataset key')
   elif(sys.argv[1] == 'lfw'):
     updates_per_epoch = 380
-    nepochs = 10
+    #nepochs = 10
+    nepochs = 1
     log_interval = 120
     out_dir = 'data/output/lfw/'
     listdir = 'data/imglist/lfw/'
@@ -66,6 +84,45 @@ def mdn_loss(gmm_params, mu, stddev, batch_size):
   gmm_loss = torch.sum(torch.add(torch.log(gmm_pi_min+1e-30), dist_min)).mul(1./batch_size)
   return gmm_loss
 
+def edge_loss(greylevel, color_out):
+    edge_grey_x = sobel_conv_x(greylevel)
+    edge_grey_y = sobel_conv_y(greylevel)
+    a = color_out.narrow(1, 0, 1)
+    b = color_out.narrow(1, 1, 1)
+    edge_a_x = sobel_conv_x(a)
+    edge_a_y = sobel_conv_y(a)
+    edge_b_x = sobel_conv_x(b)
+    edge_b_y = sobel_conv_y(b)
+
+    #img_dec = img_dec[0,...].cpu().data.numpy()
+    #img_dec = (((img_dec+1.)*1.)/2.)*255.
+    #img_dec[img_dec < 0.] = 0.
+    #img_dec[img_dec > 255.] = 255.
+    #img_dec = img_dec.reshape([66,66,1])
+    #img_dec =  cv2.resize(np.uint8(img_dec), (320,320))
+    #cv2.imwrite("here.jpg", img_dec)
+    #b = b[0,...].cpu().data.numpy()
+    #b = (((b+1.)*1.)/2.)*255.
+    #b[b < 0.] = 0.
+    #b[b > 255.] = 255.
+    #b = b.reshape([66,66,1])
+    #b =  cv2.resize(np.uint8(b), (320,320))
+    #cv2.imwrite("here2.jpg", b)
+    #a = a[0,...].cpu().data.numpy()
+    #a = (((a+1.)*1.)/2.)*255.
+    #a[a< 0.] = 0.
+    #a[a> 255.] = 255.
+    #a =a.reshape([64,64,1])
+    #a =  cv2.resize(np.uint8(a), (320,320))
+    #cv2.imwrite("here3.jpg",a)
+    #print("aa")
+
+    error = torch.sum(torch.abs(2*(edge_grey_x+edge_grey_y) - \
+            edge_a_x - edge_a_y - \
+            edge_b_x - edge_b_y))
+
+    return error
+
 def train_vae():
   updates_per_epoch, nepochs, log_interval, out_dir, listdir, featslistdir = \
       get_params()
@@ -94,6 +151,7 @@ def train_vae():
  
       optimizer.zero_grad()
       mu, logvar, color_out = model(input_color, input_greylevel, z)
+
       loss = vae_loss(mu, logvar, color_out, input_color, lossweights, batch_size)
       loss.backward()
       optimizer.step()
@@ -127,7 +185,7 @@ def train_mdn(nepochs_mdn=5):
   model_mdn = MDN()
   model_mdn.cuda()
 
-  optimizer = optim.Adam(model_mdn.parameters(), lr=1e-5)
+  optimizer = optim.Adam(filter(lambda p: p.requires_grad, model_mdn.parameters()), lr=1e-5)
 
   n_train_batches = np.int_(np.floor((data_loader.train_img_num*1.)/batch_size))
   for epochs_mdn in range(nepochs_mdn):
@@ -141,11 +199,15 @@ def train_mdn(nepochs_mdn=5):
       z = Variable(torch.randn(batch_size, hidden_size))
 
       optimizer.zero_grad()
-      mu, logvar, _ = model_vae(input_color, input_greylevel, z)
+      mu, logvar, color_out = model_vae(input_color, input_greylevel, z)
 
       mdn_gmm_params = model_mdn(input_feats)
 
-      loss = mdn_loss(mdn_gmm_params, mu, torch.sqrt(torch.exp(logvar)), batch_size)
+      loss_edge = edge_loss(Variable(torch.from_numpy(batch_recon_const)).cuda(), \
+              color_out)
+      loss = mdn_loss(mdn_gmm_params, mu, torch.sqrt(torch.exp(logvar)), batch_size) 
+      print("Edge:", loss_edge, "MDN:", loss)
+      loss += loss_edge
       loss.backward()
       optimizer.step()
       train_loss = train_loss + loss.data[0]
