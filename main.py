@@ -117,7 +117,7 @@ def edge_loss(greylevel, color_out):
     #cv2.imwrite("here3.jpg",a)
     #print("aa")
 
-    error = torch.sum(torch.abs(2*(edge_grey_x+edge_grey_y) - \
+    error = 1e-3*(1./batch_size) * torch.sum(torch.abs(2*(edge_grey_x+edge_grey_y) - \
             edge_a_x - edge_a_y - \
             edge_b_x - edge_b_y))
 
@@ -206,7 +206,7 @@ def train_mdn(nepochs_mdn=5):
       loss_edge = edge_loss(Variable(torch.from_numpy(batch_recon_const)).cuda(), \
               color_out)
       loss = mdn_loss(mdn_gmm_params, mu, torch.sqrt(torch.exp(logvar)), batch_size) 
-      print("Edge:", loss_edge, "MDN:", loss)
+      print("Edge:", loss_edge.data, "MDN:", loss.data)
       loss += loss_edge
       loss.backward()
       optimizer.step()
