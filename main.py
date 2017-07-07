@@ -43,8 +43,7 @@ def get_params():
     raise NameError('[ERROR] No dataset key')
   elif(sys.argv[1] == 'lfw'):
     updates_per_epoch = 380
-    #nepochs = 10
-    nepochs = 1
+    nepochs = 10
     log_interval = 120
     out_dir = 'data/output/lfw/'
     listdir = 'data/imglist/lfw/'
@@ -117,7 +116,7 @@ def edge_loss(greylevel, color_out):
     #cv2.imwrite("here3.jpg",a)
     #print("aa")
 
-    error = 1e-3*(1./batch_size) * torch.sum(torch.abs(2*(edge_grey_x+edge_grey_y) - \
+    error = 1e-2*(1./batch_size) * torch.sum(torch.abs(2*(edge_grey_x+edge_grey_y) - \
             edge_a_x - edge_a_y - \
             edge_b_x - edge_b_y))
 
@@ -206,7 +205,7 @@ def train_mdn(nepochs_mdn=5):
       loss_edge = edge_loss(Variable(torch.from_numpy(batch_recon_const)).cuda(), \
               color_out)
       loss = mdn_loss(mdn_gmm_params, mu, torch.sqrt(torch.exp(logvar)), batch_size) 
-      print("Edge:", loss_edge.data, "MDN:", loss.data)
+      print("Edge:", loss_edge.data.cpu().numpy(), "MDN:", loss.data.cpu().numpy())
       loss += loss_edge
       loss.backward()
       optimizer.step()
