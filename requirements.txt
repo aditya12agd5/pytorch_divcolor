@@ -1,5 +1,6 @@
-visdom==0.1.6.1
-numpy==1.13.3
-torch==0.2.0+daf2743
 torchvision==0.2.0
+torch==0.3.0.post4
 tqdm==4.19.5
+opencv_python==3.3.0.10
+numpy==1.13.3
+visdom==0.1.6.5
