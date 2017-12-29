@@ -1,0 +1,5 @@
+visdom==0.1.6.1
+numpy==1.13.3
+torch==0.2.0+daf2743
+torchvision==0.2.0
+tqdm==4.19.5
